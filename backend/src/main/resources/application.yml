@@ -1,0 +1,36 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: queryzen
+
+logging:
+  level:
+    com.queryzen: INFO
+
+queryzen:
+  connections:
+    - id: oracle-demo
+      name: 本地Oracle演示库
+      db-type: oracle
+      jdbc-url: ${QUERYZEN_DB_URL:jdbc:oracle:thin:@localhost:1521/FREEPDB1}
+      username: ${QUERYZEN_DB_USER:queryzen_ro}
+      password: ${QUERYZEN_DB_PASSWORD:QueryZen#2026}
+      schema: demo
+      max-rows: 1000
+      query-timeout-seconds: 30
+  audit:
+    writer:
+      jdbc-url: ${QUERYZEN_AUDIT_URL:jdbc:oracle:thin:@localhost:1521/FREEPDB1}
+      username: ${QUERYZEN_AUDIT_WRITER_USER:audit_writer}
+      password: ${QUERYZEN_AUDIT_WRITER_PASSWORD:QueryZen#2026}
+    reader:
+      jdbc-url: ${QUERYZEN_AUDIT_URL:jdbc:oracle:thin:@localhost:1521/FREEPDB1}
+      username: ${QUERYZEN_AUDIT_READER_USER:audit_reader}
+      password: ${QUERYZEN_AUDIT_READER_PASSWORD:QueryZen#2026}
+    schema: ${QUERYZEN_AUDIT_SCHEMA:AUDIT_OWNER}
+  users:
+    - username: admin
+      password-sha256: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      roles: [admin]
