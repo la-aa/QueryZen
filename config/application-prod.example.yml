@@ -1,0 +1,28 @@
+# 生产配置示例：复制为 config/application-prod.yml 并填写真实值
+# 敏感信息通过 ${ENV} 从 .env.prod / 密钥管理注入，不落仓库
+queryzen:
+  connections:
+    - id: prod-oracle
+      name: 生产Oracle
+      db-type: oracle
+      jdbc-url: ${QUERYZEN_DB_URL}
+      username: ${QUERYZEN_DB_USER}
+      password: ${QUERYZEN_DB_PASSWORD}
+      schema: ${QUERYZEN_DB_SCHEMA:}
+      max-rows: 500
+      query-timeout-seconds: 30
+  audit:
+    writer:
+      jdbc-url: ${QUERYZEN_AUDIT_URL}
+      username: ${QUERYZEN_AUDIT_WRITER_USER}
+      password: ${QUERYZEN_AUDIT_WRITER_PASSWORD}
+    reader:
+      jdbc-url: ${QUERYZEN_AUDIT_URL}
+      username: ${QUERYZEN_AUDIT_READER_USER}
+      password: ${QUERYZEN_AUDIT_READER_PASSWORD}
+    schema: ${QUERYZEN_AUDIT_SCHEMA:AUDIT_OWNER}
+  users:
+    # 生成：echo -n "你的密码" | shasum -a 256 | cut -d' ' -f1
+    - username: admin
+      password-sha256: <在此填入 sha256 哈希>
+      roles: [admin]

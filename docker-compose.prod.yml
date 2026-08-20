@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    container_name: queryzen-backend
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - ./config/application-prod.yml:/app/config/application-prod.yml:ro
+    command: java -jar app.jar --spring.config.additional-location=/app/config/application-prod.yml
+    networks:
+      - queryzen
+
+  frontend:
+    build: ./frontend
+    container_name: queryzen-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - queryzen
+
+networks:
+  queryzen:
+    driver: bridge

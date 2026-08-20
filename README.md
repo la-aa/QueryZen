@@ -98,13 +98,53 @@ INSERT INTO demo.employees VALUES (99,'x','x',0);
 | GET  | /api/audit/verify | 审计哈希链完整性校验 |
 | GET  | /api/audit/entries | 查询审计日志 |
 
+## 生产部署（Docker 化）
+
+镜像采用多阶段构建：后端（Maven 构建 → JRE 运行）、前端（Node 构建 → Nginx 托管静态资源 + 反代 API）。
+
+### 1. 准备部署目录
+
+```bash
+cp config/application-prod.example.yml config/application-prod.yml   # 填写真实连接与账号哈希
+cp .env.prod.example .env.prod                                        # 填写数据库/审计凭据
+chmod 600 .env.prod config/application-prod.yml
+```
+
+生成用户密码哈希：
+
+```bash
+echo -n "你的新密码" | shasum -a 256 | cut -d' ' -f1    # 填入 application-prod.yml
+```
+
+### 2. 构建并启动
+
+```bash
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
+```
+
+- 前端：`http://<服务器IP>`（80 端口）
+- 后端：容器内 8080，仅对 frontend 网络可见，不对外暴露
+
+### 3. 生产安全清单（监管验收项）
+
+- [ ] 数据库连接使用**只读账号**（`GRANT CONNECT, SELECT`），无任何 DML/DDL
+- [ ] 审计写入账号仅 `INSERT`，无 UPDATE/DELETE/TRUNCATE
+- [ ] 开启 Oracle Unified Auditing，二次留痕独立于应用
+- [ ] 敏感凭据只存在 `.env.prod`/密钥管理，**不入库、不入镜像**
+- [ ] 前置 HTTPS 反向代理（Nginx/Traefik），强制 TLS
+- [ ] 定期执行 `GET /api/audit/verify` 校验审计链完整性并归档
+
+### 4. 扩展多数据库
+
+只需在 `backend/.../dialect/` 下新增一个 `Dialect` 实现（如 `MySqlDialect`），
+并在 `Dialect.forType()` 注册即可，主流程与前端无需改动。
+
 ## 后续里程碑
 
 - [ ] 统一审计（Oracle Unified Audit）策略脚本
 - [ ] SSO/LDAP 集成
 - [ ] 敏感表审批流 + 列级脱敏
-- [ ] 导出留痕
 - [ ] 新增 MySQL / PostgreSQL 方言实现
-- [ ] Docker 化部署 + 验收
 
 > 注意：配置中的密码默认值仅用于本地开发，生产部署必须通过环境变量注入，勿提交真实凭据。

@@ -23,6 +23,8 @@ npm-debug.log*
 
 # Env / secrets
 .env
+.env.prod
+config/application-prod.yml
 *.local
 
 # Logs
