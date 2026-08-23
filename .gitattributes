@@ -1,0 +1,11 @@
+# 统一换行符
+* text=auto eol=lf
+
+# 已构建产物（若被误提交则标为二进制）
+*.jar binary
+*.xlsx binary
+
+# SQL/脚本保留可读文本
+*.sql text
+*.sh text eol=lf
+*.java text eol=lf
