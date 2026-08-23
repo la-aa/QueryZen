@@ -10,6 +10,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * 查询结果导出 XLSX（POI SXSSF 流式，避免大数据量 OOM）。
+ * 数字写为数值单元格，其余写为字符串；冻结首行表头，便于阅读。
+ */
 @Service
 public class ExportService {
 

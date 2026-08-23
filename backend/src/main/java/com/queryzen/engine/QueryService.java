@@ -17,6 +17,10 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 查询执行入口。流程：取连接定义 → 方言校验(只读) → 行数改写 → 执行并读列/行 → 写审计。
+ * 成功与失败都会写入审计（失败记录为 0 行 + 错误信息），便于监管追溯。
+ */
 @Service
 public class QueryService {
 
@@ -49,6 +53,7 @@ public class QueryService {
             if (def.queryTimeoutSeconds() > 0) {
                 ps.setQueryTimeout(def.queryTimeoutSeconds());
             }
+            // 多取 1 行用于判断是否被截断
             ps.setMaxRows(def.maxRows() + 1);
 
             try (ResultSet rs = ps.executeQuery()) {

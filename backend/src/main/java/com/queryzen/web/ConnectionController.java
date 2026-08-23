@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 连接接口：列出可用连接（前端下拉选择），及某连接的可见表清单（侧栏展示）。
+ */
 @RestController
 @RequestMapping("/api/connections")
 public class ConnectionController {

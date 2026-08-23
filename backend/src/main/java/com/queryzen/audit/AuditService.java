@@ -17,6 +17,14 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 
+/**
+ * 防篡改审计服务。
+ *
+ * 写入走 audit_writer（仅对审计表 INSERT），读取/校验走 audit_reader（仅 SELECT），
+ * 遵循最小权限。哈希链由数据库触发器 TRG_AUDIT_CHAIN 维护：
+ * 每行的 hash = sha256(上一行的 hash + content)，篡改任一历史行即断链。
+ * 排障提示：若 verify 报「链被破坏」，说明审计表被外部改过，需从 AUDIT_HEAD 追溯。
+ */
 @Service
 public class AuditService {
 

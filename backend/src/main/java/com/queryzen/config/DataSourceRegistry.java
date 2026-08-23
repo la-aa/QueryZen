@@ -9,6 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 只读数据源注册表（按 application.yml 的 queryzen.connections 初始化）。
+ * 强制 readOnly=true；可选 CURRENT_SCHEMA 切换默认 Schema（权限只读账号一般固定一个 Schema）。
+ * 新增/修改连接后重启后端生效，无需其它迁移。
+ */
 @Component
 public class DataSourceRegistry {
 

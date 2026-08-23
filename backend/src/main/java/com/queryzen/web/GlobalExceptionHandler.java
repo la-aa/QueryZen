@@ -8,12 +8,28 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
+/**
+ * 全局异常映射为统一 JSON：{"error":"..."}
+ * 401=未认证/会话过期，403=越权或密码过期，400=参数/业务错误（IllegalArgumentException），500=其它。
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(AuthInterceptor.UnauthorizedException.class)
     public ResponseEntity<Map<String, String>> unauthorized(AuthInterceptor.UnauthorizedException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthInterceptor.ForbiddenException.class)
+    public ResponseEntity<Map<String, String>> forbidden(AuthInterceptor.ForbiddenException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthInterceptor.PasswordExpiredException.class)
+    public ResponseEntity<Map<String, String>> passwordExpired(AuthInterceptor.PasswordExpiredException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", e.getMessage()));
     }
 

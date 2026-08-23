@@ -1,3 +1,4 @@
+# QueryZen 本地开发配置。环境变量可覆盖下方 ${VAR:默认值}；生产凭据走 .env.prod，勿提交真实密钥。
 server:
   port: 8080
 
@@ -10,6 +11,7 @@ logging:
     com.queryzen: INFO
 
 queryzen:
+  # 只读数据库连接列表（新增连接在此追加一条即可，重启生效）
   connections:
     - id: oracle-demo
       name: 本地Oracle演示库
@@ -20,6 +22,7 @@ queryzen:
       schema: demo
       max-rows: 1000
       query-timeout-seconds: 30
+  # 审计库读写账号：writer 仅 INSERT+用户表 UPDATE；reader 仅 SELECT（最小权限）
   audit:
     writer:
       jdbc-url: ${QUERYZEN_AUDIT_URL:jdbc:oracle:thin:@localhost:1521/FREEPDB1}
@@ -30,6 +33,8 @@ queryzen:
       username: ${QUERYZEN_AUDIT_READER_USER:audit_reader}
       password: ${QUERYZEN_AUDIT_READER_PASSWORD:QueryZen#2026}
     schema: ${QUERYZEN_AUDIT_SCHEMA:AUDIT_OWNER}
+  # 配置文件内建账号：仅作兜底（数据库 USERS 表有同名账号时以数据库为准）
+  # 生成哈希：echo -n "密码" | shasum -a 256 | cut -d' ' -f1
   users:
     - username: admin
       password-sha256: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918

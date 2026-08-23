@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 
+/**
+ * 查询接口：POST /api/query 执行只读查询；POST /api/query/export 导出 XLSX。
+ * 审计中导出会带 [EXPORT] 前缀，便于区分「日常查询」与「走数据」两类行为。
+ */
 @RestController
 @RequestMapping("/api/query")
 public class QueryController {

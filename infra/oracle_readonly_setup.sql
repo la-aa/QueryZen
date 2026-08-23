@@ -150,6 +150,28 @@ GRANT CREATE SESSION TO audit_reader;
 GRANT SELECT ON audit_owner.audit_log TO audit_reader;
 
 -- ============================================================================
+-- 4) 应用用户表（账号管理）
+--    仅 admin 可创建账号；写入走 audit_writer（INSERT/UPDATE），查询走 audit_reader（仅 SELECT）。
+--    初始内建 admin 账号与配置文件 `queryzen.users` 一致（密码 admin），密码为 SHA-256。
+--    pwd_changed_at 记录上次改密时间，用于 30 天密码有效期校验。
+-- ============================================================================
+CREATE TABLE audit_owner.users (
+  username         VARCHAR2(64) PRIMARY KEY,
+  password_sha256  VARCHAR2(64) NOT NULL,
+  roles            VARCHAR2(256),
+  created_by       VARCHAR2(64),
+  created_at       TIMESTAMP DEFAULT SYSTIMESTAMP,
+  pwd_changed_at   TIMESTAMP DEFAULT SYSTIMESTAMP
+);
+
+GRANT SELECT, INSERT, UPDATE ON audit_owner.users TO audit_writer;
+GRANT SELECT ON audit_owner.users TO audit_reader;
+
+INSERT INTO audit_owner.users (username, password_sha256, roles, created_by)
+VALUES ('admin', '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', 'admin', 'SYSTEM');
+COMMIT;
+
+-- ============================================================================
 -- 验证方法（在 DBeaver 中手动执行）
 -- ============================================================================
 -- 以 queryzen_ro 连接：

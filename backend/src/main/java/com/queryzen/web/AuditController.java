@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 审计接口：/verify 校验哈希链完整性；/entries 分页查询审计记录（默认最近 50 条）。
+ */
 @RestController
 @RequestMapping("/api/audit")
 public class AuditController {

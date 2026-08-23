@@ -4,6 +4,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
 
+/**
+ * 绑定 application.yml 的 queryzen.* 配置：
+ * connections=数据库连接；audit=审计库读写账号；users=配置文件内建账号（兜底 admin）。
+ * 环境变量可覆盖：QUERYZEN_DB_* / QUERYZEN_AUDIT_*。
+ */
 @ConfigurationProperties(prefix = "queryzen")
 public record QueryZenProperties(
         List<ConnectionDefinition> connections,

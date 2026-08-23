@@ -1,5 +1,11 @@
 package com.queryzen.dialect;
 
+/**
+ * Oracle 方言实现。
+ * 核心是 {@link #applyRowLimit}：把用户 SQL 包进内外层 ROWNUM 限制，
+ * 加上 JDBC setMaxRows 双保险，防止一次查询拖垮全表。
+ * 新增数据库时，在 {@link Dialect#forType} 注册对应实现即可，主流程无需改动。
+ */
 public class OracleDialect implements Dialect {
 
     @Override
