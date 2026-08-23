@@ -195,6 +195,12 @@ h1 { font-size: 22px; margin: 0 0 4px; }
 .result-meta { font-size: 13px; color: #374151; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .sql-detail { color: #9ca3af; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
+.hint { font-size: 12px; color: #6b7280; }
+
+.result { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }
+.result-loading { font-size: 13px; color: #2563eb; }
+.result .query-head button { padding: 5px 12px; font-size: 12px; }
+
 .grid { height: 380px; width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
 
 .audit-head { display: flex; gap: 10px; align-items: center; }

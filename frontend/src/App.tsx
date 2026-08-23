@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import Editor from '@monaco-editor/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import { AgGridReact } from 'ag-grid-react'
 import { ModuleRegistry, ClientSideRowModelModule } from 'ag-grid-community'
 import type { ColDef } from 'ag-grid-community'
@@ -23,10 +23,61 @@ import {
 
 ModuleRegistry.registerModules([ClientSideRowModelModule])
 
+function splitStatements(sql: string): string[] {
+  const out: string[] = []
+  let current = ''
+  let quote: string | null = null
+  let lineComment = false
+  let blockComment = false
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i]
+    const next = sql[i + 1]
+    if (lineComment) {
+      current += ch
+      if (ch === '\n') lineComment = false
+      continue
+    }
+    if (blockComment) {
+      current += ch
+      if (ch === '*' && next === '/') { current += '/'; i++; blockComment = false }
+      continue
+    }
+    if (quote) {
+      current += ch
+      if (ch === quote && sql[i - 1] !== '\\') quote = null
+      continue
+    }
+    if (ch === '-' && next === '-') { lineComment = true; current += ch; continue }
+    if (ch === '/' && next === '*') { blockComment = true; current += ch; continue }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; current += ch; continue }
+    if (ch === ';') { out.push(current); current = ''; continue }
+    current += ch
+  }
+  if (current.trim()) out.push(current)
+  return out.map((s) => s.trim()).filter(Boolean)
+}
+
+function scopeSql(editor: Parameters<OnMount>[0] | null, fallback: string): string {
+  if (!editor) return fallback
+  const sel = editor.getSelection()
+  const model = editor.getModel()
+  if (!sel || sel.isEmpty() || !model) return fallback
+  const text = model.getValueInRange(sel)
+  return text.trim() ? text : fallback
+}
+
 interface Session {
   token: string
   username: string
   roles: string[]
+}
+
+interface ResultCard {
+  key: string
+  sql: string
+  status: 'loading' | 'ok' | 'error'
+  result?: QueryResult
+  error?: string
 }
 
 function App() {
@@ -114,9 +165,10 @@ function QueryPanel() {
   const [tables, setTables] = useState<TableInfo[]>([])
   const [tablesError, setTablesError] = useState('')
   const [sql, setSql] = useState('SELECT * FROM demo.employees ORDER BY id')
-  const [result, setResult] = useState<QueryResult | null>(null)
+  const [cards, setCards] = useState<ResultCard[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -137,32 +189,21 @@ function QueryPanel() {
       .catch((err) => setTablesError(apiErrorMessage(err)))
   }, [connectionId])
 
-  const columnDefs: ColDef[] = (result?.columns ?? []).map((c) => ({ field: c.name, headerName: `${c.name} (${c.jdbcType})` }))
-  const rowData = result?.rows.map((r) => {
-    const obj: Record<string, unknown> = {}
-    result.columns.forEach((c, i) => { obj[c.name] = r[i] })
-    return obj
-  }) ?? []
-
-  async function run() {
-    setBusy(true)
-    setError('')
-    setResult(null)
-    try {
-      const res = await runQuery(connectionId, sql)
-      setResult(res)
-    } catch (err) {
-      setError(apiErrorMessage(err))
-    } finally {
-      setBusy(false)
-    }
+  function cardRows(c: ResultCard): Record<string, unknown>[] {
+    const res = c.result
+    if (!res) return []
+    return res.rows.map((r) => {
+      const obj: Record<string, unknown> = {}
+      res.columns.forEach((col, i) => { obj[col.name] = r[i] })
+      return obj
+    })
   }
 
-  async function exportResult() {
+  async function exportCard(c: ResultCard) {
     setExporting(true)
     setError('')
     try {
-      await exportXlsx(connectionId, sql)
+      await exportXlsx(connectionId, c.sql)
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -170,9 +211,23 @@ function QueryPanel() {
     }
   }
 
+  async function run() {
+    const stmts = splitStatements(scopeSql(editorRef.current, sql))
+    if (stmts.length === 0) { setError('没有可执行的语句'); return }
+    setBusy(true)
+    setError('')
+    setCards(stmts.map((s, i) => ({ key: `${Date.now()}-${i}`, sql: s, status: 'loading' as const })))
+    const settled = await Promise.allSettled(stmts.map((s) => runQuery(connectionId, s)))
+    setCards(settled.map((r, i) => {
+      if (r.status === 'fulfilled') return { key: `${Date.now()}-${i}`, sql: stmts[i], status: 'ok' as const, result: r.value }
+      return { key: `${Date.now()}-${i}`, sql: stmts[i], status: 'error' as const, error: apiErrorMessage(r.reason) }
+    }))
+    setBusy(false)
+  }
+
   function insertTable(t: TableInfo) {
     setSql(`SELECT * FROM ${t.owner}.${t.tableName} ORDER BY 1`)
-    setResult(null)
+    setCards([])
     setError('')
   }
 
@@ -203,9 +258,6 @@ function QueryPanel() {
           <button onClick={run} disabled={busy || !connectionId || !sql.trim()}>
             {busy ? '执行中...' : '执行查询'}
           </button>
-          <button className="export-btn" onClick={exportResult} disabled={exporting || !result || result.rowCount === 0}>
-            {exporting ? '导出中...' : '导出 XLSX'}
-          </button>
         </div>
         <div className="sql-editor">
           <Editor
@@ -214,21 +266,36 @@ function QueryPanel() {
             theme="vs-dark"
             value={sql}
             onChange={(v) => setSql(v ?? '')}
+            onMount={(editor) => { editorRef.current = editor }}
             options={{ minimap: { enabled: false }, fontSize: 14 }}
           />
         </div>
+        <div className="hint">选中部分文本时只执行选中内容；否则执行全文（多条语句以“;”分隔，将并行执行、逐条展示）</div>
         {error && <div className="error">{error}</div>}
-        {result && (
-          <div className="result">
+        {cards.map((c) => (
+          <div className="result" key={c.key}>
             <div className="result-meta">
-              返回 {result.rowCount} 行，耗时 {result.elapsedMs} ms{result.truncated ? '（结果已被截断）' : ''}
-              <span className="sql-detail">{result.finalSql}</span>
+              <span className="sql-detail">{c.sql}</span>
             </div>
-            <div className="ag-theme-quartz grid">
-              <AgGridReact rowData={rowData} columnDefs={columnDefs} onGridReady={(p) => p.api.sizeColumnsToFit()} />
-            </div>
+            {c.status === 'loading' && <div className="result-loading">执行中...</div>}
+            {c.status === 'error' && <div className="error">{c.error}</div>}
+            {c.status === 'ok' && c.result && (
+              <>
+                <div className="result-meta">
+                  返回 {c.result.rowCount} 行，耗时 {c.result.elapsedMs} ms{c.result.truncated ? '（结果已被截断）' : ''} · {c.result.finalSql}
+                </div>
+                <div className="query-head">
+                  <button className="export-btn" onClick={() => exportCard(c)} disabled={exporting || c.result.rowCount === 0}>
+                    {exporting ? '导出中...' : '导出 XLSX'}
+                  </button>
+                </div>
+                <div className="ag-theme-quartz grid">
+                  <AgGridReact rowData={cardRows(c)} columnDefs={c.result.columns.map((col) => ({ field: col.name, headerName: `${col.name} (${col.jdbcType})` }))} onGridReady={(p) => p.api.sizeColumnsToFit()} />
+                </div>
+              </>
+            )}
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
