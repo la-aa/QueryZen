@@ -45,6 +45,8 @@ Oracle · React · TypeScript · Docker
 
 **环境要求**：JDK 17、Maven 3.8+、Docker（或 Colima）。
 
+> Docker 仅用于本地 Oracle 数据库；应用本身（后端内嵌 Tomcat :8080、前端 Vite :5173）全在本地进程运行，**无需单独配置 Tomcat**。
+
 ### 一键启动
 
 ```bash
@@ -56,19 +58,34 @@ bash scripts/dev.sh
 ### 手动分步
 
 ```bash
-# 1. 启动 Oracle 测试库
+# 1. 启动 Oracle 测试库（仅这一步用到 Docker）
 docker compose up -d
 docker logs -f queryzen-oracle   # 看到 "DATABASE IS READY TO USE!" 后 Ctrl+C
 
 # 2. 初始化数据、只读账号与审计库（可重复执行）
 bash scripts/setup-oracle.sh
 
-# 3. 启动后端
+# 3. 启动后端（Spring Boot 内嵌 Tomcat，监听 8080；JDK 见 scripts/env.sh）
 cd backend && source ../scripts/env.sh && mvn spring-boot:run
 
-# 4. 启动前端（新开终端）
+# 4. 启动前端（新开终端，监听 5173）
 cd frontend && npm install && npm run dev
 ```
+
+### 停止与重启
+
+```bash
+# 前端/后端：终端 Ctrl+C；或按 PID 停止
+lsof -i :8080        # 查后端 PID
+lsof -i :5173        # 查前端 PID
+kill <PID>           # 替换为实际查到的 PID
+
+# 数据库：Docker 容器启停（数据保留在容器卷中）
+docker compose stop    # 停
+docker compose start   # 再起
+```
+
+访问：前端 **http://localhost:5173**，后端 API **:8080**，Oracle **localhost:1521/FREEPDB1**。
 
 ### 默认账号
 
