@@ -41,6 +41,20 @@ export interface AuditRecord {
   ts: string
 }
 
+export interface UserView {
+  username: string
+  roles: string[]
+  createdBy: string | null
+  createdAt: string | null
+}
+
+export interface LoginResult {
+  token: string
+  username: string
+  roles: string[]
+  passwordExpired: boolean
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -48,7 +62,23 @@ api.interceptors.request.use((config) => {
 })
 
 export function login(username: string, password: string) {
-  return api.post<{ token: string; username: string; roles: string[] }>('/auth/login', { username, password }).then((r) => r.data)
+  return api.post<LoginResult>('/auth/login', { username, password }).then((r) => r.data)
+}
+
+export function changePassword(oldPassword: string, newPassword: string) {
+  return api.post<LoginResult>('/auth/change-password', { oldPassword, newPassword }).then((r) => r.data)
+}
+
+export function resetUserPassword(username: string, newPassword: string) {
+  return api.post<{ result: string; message: string }>('/auth/users/reset-password', { username, newPassword }).then((r) => r.data)
+}
+
+export function listUsers() {
+  return api.get<UserView[]>('/auth/users').then((r) => r.data)
+}
+
+export function createUser(username: string, password: string, roles: string[]) {
+  return api.post<UserView>('/auth/users', { username, password, roles }).then((r) => r.data)
 }
 
 export interface TableInfo {
