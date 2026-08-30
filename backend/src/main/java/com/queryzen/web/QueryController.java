@@ -5,7 +5,6 @@ import com.queryzen.config.AuthService;
 import com.queryzen.engine.ExportService;
 import com.queryzen.engine.QueryResult;
 import com.queryzen.engine.QueryService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.time.Instant;
 
 /**
@@ -32,13 +32,21 @@ public class QueryController {
         this.exportService = exportService;
     }
 
-    public record QueryRequest(String connectionId, String sql) {}
+    public static class QueryRequest {
+        private String connectionId;
+        private String sql;
+
+        public String getConnectionId() { return connectionId; }
+        public void setConnectionId(String connectionId) { this.connectionId = connectionId; }
+        public String getSql() { return sql; }
+        public void setSql(String sql) { this.sql = sql; }
+    }
 
     @PostMapping
     public QueryResult run(@RequestBody QueryRequest req, HttpServletRequest http) {
         AuthService.Session session =
                 (AuthService.Session) http.getAttribute(AuthInterceptor.ATTR_SESSION);
-        return queryService.execute(req.connectionId(), req.sql(), session.username(), clientIp(http));
+        return queryService.execute(req.getConnectionId(), req.getSql(), session.getUsername(), clientIp(http));
     }
 
     @PostMapping("/export")
@@ -46,7 +54,7 @@ public class QueryController {
         AuthService.Session session =
                 (AuthService.Session) http.getAttribute(AuthInterceptor.ATTR_SESSION);
         QueryResult result = queryService.executeForExport(
-                req.connectionId(), req.sql(), session.username(), clientIp(http));
+                req.getConnectionId(), req.getSql(), session.getUsername(), clientIp(http));
 
         byte[] data = exportService.toXlsx(result);
         String stamp = Instant.now().toString().substring(0, 19).replace(':', '-');
@@ -61,7 +69,7 @@ public class QueryController {
 
     private String clientIp(HttpServletRequest http) {
         String xff = http.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
+        if (xff != null && !xff.trim().isEmpty()) {
             return xff.split(",")[0].trim();
         }
         return http.getRemoteAddr();

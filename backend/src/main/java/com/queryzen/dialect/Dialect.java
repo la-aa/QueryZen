@@ -11,9 +11,10 @@ public interface Dialect {
     String listTablesSql();
 
     static Dialect forType(String dbType) {
-        return switch (dbType.toLowerCase()) {
-            case "oracle" -> new OracleDialect();
-            default -> throw new IllegalArgumentException("暂不支持该数据库类型: " + dbType);
-        };
+        String type = dbType.toLowerCase();
+        if ("oracle".equals(type)) {
+            return new OracleDialect();
+        }
+        throw new IllegalArgumentException("暂不支持该数据库类型: " + dbType);
     }
 }

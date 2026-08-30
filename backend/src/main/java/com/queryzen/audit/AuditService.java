@@ -3,9 +3,9 @@ package com.queryzen.audit;
 import com.queryzen.config.QueryZenProperties;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -14,7 +14,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -33,17 +32,17 @@ public class AuditService {
     private final String table;
 
     public AuditService(QueryZenProperties props) {
-        QueryZenProperties.AuditProperties audit = props.audit();
-        this.writerDs = build(audit.writer());
-        this.readerDs = build(audit.reader());
-        this.table = audit.schema() + ".AUDIT_LOG";
+        QueryZenProperties.AuditProperties audit = props.getAudit();
+        this.writerDs = build(audit.getWriter());
+        this.readerDs = build(audit.getReader());
+        this.table = audit.getSchema() + ".AUDIT_LOG";
     }
 
     private static HikariDataSource build(QueryZenProperties.DatasourceProps p) {
         HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl(p.jdbcUrl());
-        cfg.setUsername(p.username());
-        cfg.setPassword(p.password());
+        cfg.setJdbcUrl(p.getJdbcUrl());
+        cfg.setUsername(p.getUsername());
+        cfg.setPassword(p.getPassword());
         cfg.setDriverClassName("oracle.jdbc.OracleDriver");
         cfg.setMaximumPoolSize(2);
         return new HikariDataSource(cfg);
@@ -57,12 +56,12 @@ public class AuditService {
                 + "VALUES (?,?,?,?,?,?,?)";
         try (Connection c = writerDs.getConnection();
              PreparedStatement ps = c.prepareStatement(insert)) {
-            ps.setString(1, r.username());
-            ps.setString(2, r.ip());
-            ps.setString(3, r.sqlText());
-            ps.setInt(4, r.rowsReturned());
-            ps.setLong(5, r.elapsedMs());
-            ps.setString(6, r.errorMsg());
+            ps.setString(1, r.getUsername());
+            ps.setString(2, r.getIp());
+            ps.setString(3, r.getSqlText());
+            ps.setInt(4, r.getRowsReturned());
+            ps.setLong(5, r.getElapsedMs());
+            ps.setString(6, r.getErrorMsg());
             ps.setString(7, content);
             ps.executeUpdate();
         } catch (Exception e) {
@@ -71,22 +70,49 @@ public class AuditService {
     }
 
     static String buildContent(AuditEntry r) {
-        String sqlHash = sha256(r.sqlText() == null ? "" : r.sqlText());
-        return r.username() + "|" + r.ip() + "|"
-                + r.rowsReturned() + "|" + r.elapsedMs() + "|"
-                + (r.errorMsg() == null ? "" : r.errorMsg()) + "|" + sqlHash;
+        String sqlHash = sha256(r.getSqlText() == null ? "" : r.getSqlText());
+        return r.getUsername() + "|" + r.getIp() + "|"
+                + r.getRowsReturned() + "|" + r.getElapsedMs() + "|"
+                + (r.getErrorMsg() == null ? "" : r.getErrorMsg()) + "|" + sqlHash;
     }
 
     public static String sha256(String value) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(value.getBytes(StandardCharsets.UTF_8)));
+            return toHex(md.digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
     }
 
-    public record VerifyResult(boolean intact, long total, long checked, String message) {}
+    /** 小写十六进制（与原 JDK17 HexFormat.of().formatHex 输出一致）。 */
+    private static String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
+    }
+
+    public static class VerifyResult {
+        private final boolean intact;
+        private final long total;
+        private final long checked;
+        private final String message;
+
+        public VerifyResult(boolean intact, long total, long checked, String message) {
+            this.intact = intact;
+            this.total = total;
+            this.checked = checked;
+            this.message = message;
+        }
+
+        public boolean isIntact() { return intact; }
+        public long getTotal() { return total; }
+        public long getChecked() { return checked; }
+        public String getMessage() { return message; }
+    }
 
     public VerifyResult verifyChain() {
         String sql = "SELECT SEQ, PREV_HASH, HASH, CONTENT FROM " + table + " ORDER BY SEQ";
@@ -102,7 +128,7 @@ public class AuditService {
         }
 
         if (rows.isEmpty()) return new VerifyResult(true, 0, 0, "审计日志为空");
-        if (!"GENESIS".equalsIgnoreCase(rows.get(0).prevHash())) {
+        if (!"GENESIS".equalsIgnoreCase(rows.get(0).getPrevHash())) {
             return new VerifyResult(false, rows.size(), 0, "链首哈希异常（期望 GENESIS）");
         }
 
@@ -110,8 +136,8 @@ public class AuditService {
         for (int i = 1; i < rows.size(); i++) {
             ChainRow prev = rows.get(i - 1);
             ChainRow cur = rows.get(i);
-            String expected = sha256(prev.hash() + cur.content());
-            if (!expected.equalsIgnoreCase(cur.hash()) || !prev.hash().equalsIgnoreCase(cur.prevHash())) {
+            String expected = sha256(prev.getHash() + cur.getContent());
+            if (!expected.equalsIgnoreCase(cur.getHash()) || !prev.getHash().equalsIgnoreCase(cur.getPrevHash())) {
                 return new VerifyResult(false, rows.size(), i, "链完整性被破坏（第 " + (i + 1) + " 条）");
             }
             checked++;
@@ -144,7 +170,24 @@ public class AuditService {
         return out;
     }
 
-    private record ChainRow(long seq, String prevHash, String hash, String content) {}
+    private static class ChainRow {
+        private final long seq;
+        private final String prevHash;
+        private final String hash;
+        private final String content;
+
+        ChainRow(long seq, String prevHash, String hash, String content) {
+            this.seq = seq;
+            this.prevHash = prevHash;
+            this.hash = hash;
+            this.content = content;
+        }
+
+        long getSeq() { return seq; }
+        String getPrevHash() { return prevHash; }
+        String getHash() { return hash; }
+        String getContent() { return content; }
+    }
 
     @PreDestroy
     void close() {
@@ -152,5 +195,28 @@ public class AuditService {
         readerDs.close();
     }
 
-    record AuditEntry(String username, String ip, String sqlText, int rowsReturned, long elapsedMs, String errorMsg) {}
+    static class AuditEntry {
+        private final String username;
+        private final String ip;
+        private final String sqlText;
+        private final int rowsReturned;
+        private final long elapsedMs;
+        private final String errorMsg;
+
+        AuditEntry(String username, String ip, String sqlText, int rowsReturned, long elapsedMs, String errorMsg) {
+            this.username = username;
+            this.ip = ip;
+            this.sqlText = sqlText;
+            this.rowsReturned = rowsReturned;
+            this.elapsedMs = elapsedMs;
+            this.errorMsg = errorMsg;
+        }
+
+        String getUsername() { return username; }
+        String getIp() { return ip; }
+        String getSqlText() { return sqlText; }
+        int getRowsReturned() { return rowsReturned; }
+        long getElapsedMs() { return elapsedMs; }
+        String getErrorMsg() { return errorMsg; }
+    }
 }

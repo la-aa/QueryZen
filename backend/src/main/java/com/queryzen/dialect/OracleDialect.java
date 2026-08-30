@@ -15,14 +15,14 @@ public class OracleDialect implements Dialect {
 
     @Override
     public boolean isWithSelect(String sql) {
-        return sql.stripLeading().matches("(?i)WITH\\s.*");
+        return sql.trim().matches("(?i)WITH\\s.*");
     }
 
     @Override
     public String applyRowLimit(String sql, int maxRows) {
-        String s = sql.strip();
+        String s = sql.trim();
         while (s.endsWith(";")) {
-            s = s.substring(0, s.length() - 1).stripTrailing();
+            s = s.substring(0, s.length() - 1).trim();
         }
         if (isWithSelect(s)) {
             return s;

@@ -22,10 +22,10 @@ public final class SqlGuard {
     private SqlGuard() {}
 
     public static void validate(String sql, String dbType) {
-        if (sql == null || sql.isBlank()) throw new IllegalArgumentException("SQL 不能为空");
+        if (sql == null || sql.trim().isEmpty()) throw new IllegalArgumentException("SQL 不能为空");
 
         // 第一层：正则快过滤，拦掉明显危险的会话/权限/DDL 前缀
-        String upper = sql.stripLeading().toUpperCase();
+        String upper = sql.trim().toUpperCase();
         if (upper.matches("(CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|AUDIT|NOAUDIT|SET\\s+ROLE).*")) {
             throw new IllegalArgumentException("语句类型不被允许: DDL/权限/会话操作");
         }
@@ -36,10 +36,10 @@ public final class SqlGuard {
         if (statements.size() > 1) throw new IllegalArgumentException("一次只允许执行一条语句");
 
         SQLStatement stmt = statements.get(0);
-        if (!(stmt instanceof SQLSelectStatement select)) {
+        if (!(stmt instanceof SQLSelectStatement)) {
             throw new IllegalArgumentException("语句类型不被允许: " + stmt.getClass().getSimpleName());
         }
-        checkForUpdate(select);
+        checkForUpdate((SQLSelectStatement) stmt);
     }
 
     private static List<SQLStatement> parse(String sql, String dbType) {

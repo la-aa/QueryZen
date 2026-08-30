@@ -7,8 +7,8 @@
 Read-only database query tool designed for regulatory compliance.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Java](https://img.shields.io/badge/Java-17-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-brightgreen)
+![Java](https://img.shields.io/badge/Java-8-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7-brightgreen)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 
 Oracle · React · TypeScript · Docker
@@ -27,6 +27,14 @@ Oracle · React · TypeScript · Docker
 - **账号与权限**：admin 专属创建账号、密码 30 天有效期与过期强制更新、忘记密码由管理员重置。
 - **多数据库可扩展**：方言抽象，新增 MySQL / PostgreSQL 只需实现一个 `Dialect`。
 
+## 项目预览 (Screenshots)
+
+| 登录 | 查询（Monaco 编辑器 + 结果网格 + XLSX 导出） |
+|---|---|
+| ![登录页](docs/screenshots/login.png) | ![查询页](docs/screenshots/query.png) |
+| **审计日志（SHA-256 哈希链留痕）** | **用户管理（admin 专属）** |
+| ![审计日志页](docs/screenshots/audit.png) | ![用户管理页](docs/screenshots/users.png) |
+
 ## 安全设计 (Security Model)
 
 1. **账号层**：Oracle 只读账号仅授予 `CREATE SESSION` + `SELECT`，无任何 DML/DDL 权限。
@@ -37,13 +45,13 @@ Oracle · React · TypeScript · Docker
 
 ## 技术栈 (Tech Stack)
 
-- **后端**：Java 17 · Spring Boot 3.4 · Maven · Druid SQLParser · HikariCP · Oracle JDBC · Apache POI (XLSX)
+- **后端**：Java 8 · Spring Boot 2.7 · Maven · Druid SQLParser · HikariCP · Oracle JDBC · Apache POI (XLSX)
 - **前端**：React 18 · TypeScript · Vite · Monaco Editor · AG Grid
 - **数据库**：Oracle 23 Free（本地开发用 Docker `gvenzl/oracle-free:23-slim`）
 
 ## 快速开始 (Getting Started)
 
-**环境要求**：JDK 17、Maven 3.8+、Docker（或 Colima）。
+**环境要求**：JDK 8、Maven 3.5+、Docker（或 Colima）。
 
 > Docker 仅用于本地 Oracle 数据库；应用本身（后端内嵌 Tomcat :8080、前端 Vite :5173）全在本地进程运行，**无需单独配置 Tomcat**。
 
@@ -105,12 +113,12 @@ docker compose start   # 再起
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `invalid target release: 17` / `Error: java: ... 无效的源发行版` | 项目的 Maven Runner 或 Project SDK 指向了旧 JDK 1.8 | 安装 JDK 17 后：`Settings → Build, Execution, Deployment → Build Tools → Maven → Runner → JRE` 选择 **17**；`File → Project Structure → Project → SDK` 选 **17** |
-| 依赖标红 / `Cannot resolve symbol` | Maven 未成功导入 | 确认 Maven Home 为 **3.8+**（Homebrew `/opt/homebrew` 自带 3.9.x，勿用 3.3）；`Maven 工具窗 → Reload All Maven Projects` |
+| `invalid target release: 8` / `Error: java: ... 无效的源发行版` | 项目的 Maven Runner 或 Project SDK 未指向 JDK 8 | 安装 JDK 8 后：`Settings → Build, Execution, Deployment → Build Tools → Maven → Runner → JRE` 选择 **8**；`File → Project Structure → Project → SDK` 选 **8** |
+| 依赖标红 / `Cannot resolve symbol` | Maven 未成功导入 | 确认 Maven Home 为 **3.5+**（Boot 2.7 的最低要求；Homebrew `/opt/homebrew` 自带 3.9.x）；`Maven 工具窗 → Reload All Maven Projects` |
 | 前端 Node 标红 | 未选 Node 解释器 | `Settings → Languages & Frameworks → Node.js → Node interpreter` 选择 `which node` 路径 |
 | `target/` `dist/` 显示在项目树 | 构建产物 | 已是 `.gitignore` 忽略项；如需隐藏：`Settings → Editor → File Types → Ignore files and folders` 添加 `target;dist` |
 
-本地默认 `mvn`/`java` 已固定为 JDK 17 + Maven 3.9（见 `scripts/env.sh`）。
+本地默认 `mvn`/`java` 已固定为 JDK 8（见 `scripts/env.sh`）。
 
 ## 用户与认证 (Users & Authentication)
 

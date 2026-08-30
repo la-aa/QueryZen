@@ -3,14 +3,16 @@ package com.queryzen.config;
 import com.queryzen.config.QueryZenProperties.DatasourceProps;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Repository;
 
+import javax.annotation.PreDestroy;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,24 +29,47 @@ public class UserRepository {
     private final String table;
 
     public UserRepository(QueryZenProperties props) {
-        QueryZenProperties.AuditProperties audit = props.audit();
-        this.writerDs = build(audit.writer());
-        this.readerDs = build(audit.reader());
-        this.table = audit.schema() + ".USERS";
+        QueryZenProperties.AuditProperties audit = props.getAudit();
+        this.writerDs = build(audit.getWriter());
+        this.readerDs = build(audit.getReader());
+        this.table = audit.getSchema() + ".USERS";
     }
 
     private static HikariDataSource build(DatasourceProps p) {
         HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl(p.jdbcUrl());
-        cfg.setUsername(p.username());
-        cfg.setPassword(p.password());
+        cfg.setJdbcUrl(p.getJdbcUrl());
+        cfg.setUsername(p.getUsername());
+        cfg.setPassword(p.getPassword());
         cfg.setDriverClassName("oracle.jdbc.OracleDriver");
         cfg.setMaximumPoolSize(2);
         return new HikariDataSource(cfg);
     }
 
-    public record StoredUser(String username, String passwordSha256, List<String> roles,
-                             String createdBy, String createdAt, Instant pwdChangedAt) {}
+    public static class StoredUser {
+        private final String username;
+        private final String passwordSha256;
+        private final List<String> roles;
+        private final String createdBy;
+        private final String createdAt;
+        private final Instant pwdChangedAt;
+
+        public StoredUser(String username, String passwordSha256, List<String> roles,
+                          String createdBy, String createdAt, Instant pwdChangedAt) {
+            this.username = username;
+            this.passwordSha256 = passwordSha256;
+            this.roles = roles;
+            this.createdBy = createdBy;
+            this.createdAt = createdAt;
+            this.pwdChangedAt = pwdChangedAt;
+        }
+
+        public String getUsername() { return username; }
+        public String getPasswordSha256() { return passwordSha256; }
+        public List<String> getRoles() { return roles; }
+        public String getCreatedBy() { return createdBy; }
+        public String getCreatedAt() { return createdAt; }
+        public Instant getPwdChangedAt() { return pwdChangedAt; }
+    }
 
     public Optional<StoredUser> findByUsername(String username) {
         String sql = "SELECT USERNAME, PASSWORD_SHA256, ROLES, CREATED_BY, "
@@ -113,9 +138,9 @@ public class UserRepository {
         return new StoredUser(
                 rs.getString(1),
                 rs.getString(2),
-                rawRoles == null || rawRoles.isBlank()
-                        ? List.of()
-                        : List.of(rawRoles.split(",")),
+                rawRoles == null || rawRoles.trim().isEmpty()
+                        ? Collections.<String>emptyList()
+                        : Arrays.asList(rawRoles.split(",")),
                 rs.getString(4),
                 rs.getString(5),
                 changedAt);

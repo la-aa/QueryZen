@@ -22,13 +22,13 @@ public class ExportService {
             Sheet sheet = wb.createSheet("query result");
 
             Row header = sheet.createRow(0);
-            List<QueryResult.Column> columns = result.columns();
+            List<QueryResult.Column> columns = result.getColumns();
             for (int i = 0; i < columns.size(); i++) {
-                header.createCell(i).setCellValue(columns.get(i).name());
+                header.createCell(i).setCellValue(columns.get(i).getName());
             }
 
             int r = 1;
-            for (List<Object> row : result.rows()) {
+            for (List<Object> row : result.getRows()) {
                 Row xr = sheet.createRow(r++);
                 for (int c = 0; c < row.size(); c++) {
                     Object v = row.get(c);
@@ -36,8 +36,8 @@ public class ExportService {
                         continue;
                     }
                     Cell cell = xr.createCell(c);
-                    if (v instanceof Number num) {
-                        cell.setCellValue(num.doubleValue());
+                    if (v instanceof Number) {
+                        cell.setCellValue(((Number) v).doubleValue());
                     } else {
                         cell.setCellValue(String.valueOf(v));
                     }

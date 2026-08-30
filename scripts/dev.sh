@@ -21,8 +21,7 @@ bash scripts/setup-oracle.sh
 
 # 2. 启动后端
 echo "==> 启动后端 (8080)..."
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export PATH="$JAVA_HOME/bin:$PATH"
+source scripts/env.sh
 nohup mvn -f backend/pom.xml -DskipTests spring-boot:run > /tmp/queryzen-backend.log 2>&1 &
 BACKEND_PID=$!
 echo "backend pid=$BACKEND_PID (log: /tmp/queryzen-backend.log)"

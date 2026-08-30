@@ -4,13 +4,15 @@ import com.queryzen.config.AuthInterceptor;
 import com.queryzen.config.AuthService;
 import com.queryzen.config.AuthService.Session;
 import com.queryzen.config.AuthService.UserAccountView;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,34 +31,70 @@ public class AuthController {
         this.authService = authService;
     }
 
-    public record LoginRequest(String username, String password) {}
+    public static class LoginRequest {
+        private String username;
+        private String password;
 
-    public record CreateUserRequest(String username, String password, List<String> roles) {}
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+    }
 
-    public record ChangePasswordRequest(String oldPassword, String newPassword) {}
+    public static class CreateUserRequest {
+        private String username;
+        private String password;
+        private List<String> roles;
 
-    public record ResetPasswordRequest(String username, String newPassword) {}
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public List<String> getRoles() { return roles; }
+        public void setRoles(List<String> roles) { this.roles = roles; }
+    }
+
+    public static class ChangePasswordRequest {
+        private String oldPassword;
+        private String newPassword;
+
+        public String getOldPassword() { return oldPassword; }
+        public void setOldPassword(String oldPassword) { this.oldPassword = oldPassword; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+    }
+
+    public static class ResetPasswordRequest {
+        private String username;
+        private String newPassword;
+
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+    }
 
     @PostMapping("/login")
     public Map<String, Object> login(@RequestBody LoginRequest req) {
-        Session s = authService.login(req.username(), req.password());
-        return Map.of(
-                "token", s.token(),
-                "username", s.username(),
-                "roles", s.roles(),
-                "passwordExpired", s.mustChangePassword());
+        Session s = authService.login(req.getUsername(), req.getPassword());
+        return sessionMap(s);
     }
 
     @PostMapping("/change-password")
     public Map<String, Object> changePassword(HttpServletRequest request,
                                               @RequestBody ChangePasswordRequest req) {
         Session current = (Session) request.getAttribute(AuthInterceptor.ATTR_SESSION);
-        Session fresh = authService.changePassword(current, req.oldPassword(), req.newPassword());
-        return Map.of(
-                "token", fresh.token(),
-                "username", fresh.username(),
-                "roles", fresh.roles(),
-                "passwordExpired", fresh.mustChangePassword());
+        Session fresh = authService.changePassword(current, req.getOldPassword(), req.getNewPassword());
+        return sessionMap(fresh);
+    }
+
+    private static Map<String, Object> sessionMap(Session s) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("token", s.getToken());
+        m.put("username", s.getUsername());
+        m.put("roles", s.getRoles());
+        m.put("passwordExpired", s.isMustChangePassword());
+        return m;
     }
 
     @GetMapping("/users")
@@ -70,25 +108,26 @@ public class AuthController {
                                       @RequestBody CreateUserRequest req) {
         Session creator = requireAdmin(request);
         return authService.createUser(
-                creator.username(),
-                req.username(),
-                req.password(),
-                Optional.ofNullable(req.roles()).orElse(List.of()));
+                creator.getUsername(),
+                req.getUsername(),
+                req.getPassword(),
+                Optional.ofNullable(req.getRoles()).orElse(Collections.<String>emptyList()));
     }
 
     @PostMapping("/users/reset-password")
     public Map<String, String> resetPassword(HttpServletRequest request,
                                              @RequestBody ResetPasswordRequest req) {
         Session operator = requireAdmin(request);
-        authService.resetPassword(operator.username(), req.username(), req.newPassword());
-        return Map.of(
-                "result", "ok",
-                "message", "已重置 " + req.username() + " 的密码，下次登录需更新密码");
+        authService.resetPassword(operator.getUsername(), req.getUsername(), req.getNewPassword());
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("result", "ok");
+        m.put("message", "已重置 " + req.getUsername() + " 的密码，下次登录需更新密码");
+        return m;
     }
 
     private Session requireAdmin(HttpServletRequest request) {
         Session s = (Session) request.getAttribute(AuthInterceptor.ATTR_SESSION);
-        if (s == null || !s.roles().contains("admin")) throw new AuthInterceptor.ForbiddenException();
+        if (s == null || !s.getRoles().contains("admin")) throw new AuthInterceptor.ForbiddenException();
         return s;
     }
 }

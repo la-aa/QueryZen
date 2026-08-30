@@ -9,13 +9,14 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 认证与会话管理。
@@ -30,11 +31,31 @@ public class AuthService {
 
     public static final Duration PASSWORD_VALIDITY = Duration.ofDays(30);
 
-    public record Session(String token, String username, List<String> roles,
-                          Instant expiry, boolean mustChangePassword) {
+    public static class Session {
+        private final String token;
+        private final String username;
+        private final List<String> roles;
+        private final Instant expiry;
+        private final boolean mustChangePassword;
+
+        public Session(String token, String username, List<String> roles,
+                       Instant expiry, boolean mustChangePassword) {
+            this.token = token;
+            this.username = username;
+            this.roles = roles;
+            this.expiry = expiry;
+            this.mustChangePassword = mustChangePassword;
+        }
+
         public boolean valid() {
             return Instant.now().isBefore(expiry);
         }
+
+        public String getToken() { return token; }
+        public String getUsername() { return username; }
+        public List<String> getRoles() { return roles; }
+        public Instant getExpiry() { return expiry; }
+        public boolean isMustChangePassword() { return mustChangePassword; }
     }
 
     private static final long SESSION_TTL_SECONDS = 8 * 3600;
@@ -49,24 +70,24 @@ public class AuthService {
     }
 
     public Session login(String username, String password) {
-        if (username == null || username.isBlank()) throw new IllegalArgumentException("用户名或密码错误");
+        if (username == null || username.trim().isEmpty()) throw new IllegalArgumentException("用户名或密码错误");
         String hash = sha256(password);
 
         Optional<StoredUser> dbUser = userRepository.findByUsername(username);
         if (dbUser.isPresent()) {
-            if (!dbUser.get().passwordSha256().equalsIgnoreCase(hash)) {
+            if (!dbUser.get().getPasswordSha256().equalsIgnoreCase(hash)) {
                 throw new IllegalArgumentException("用户名或密码错误");
             }
-            return newSession(username, dbUser.get().roles(),
-                    dbUser.get().pwdChangedAt().plus(PASSWORD_VALIDITY).isBefore(Instant.now()));
+            return newSession(username, dbUser.get().getRoles(),
+                    dbUser.get().getPwdChangedAt().plus(PASSWORD_VALIDITY).isBefore(Instant.now()));
         }
 
-        QueryZenProperties.UserAccount configUser = props.users().stream()
-                .filter(u -> u.username().equals(username))
-                .filter(u -> u.passwordSha256().equalsIgnoreCase(hash))
+        QueryZenProperties.UserAccount configUser = props.getUsers().stream()
+                .filter(u -> u.getUsername().equals(username))
+                .filter(u -> u.getPasswordSha256().equalsIgnoreCase(hash))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("用户名或密码错误"));
-        return newSession(username, configUser.roles(), false);
+        return newSession(username, configUser.getRoles(), false);
     }
 
     private Session newSession(String username, List<String> roles, boolean mustChange) {
@@ -76,7 +97,7 @@ public class AuthService {
                 roles,
                 Instant.now().plusSeconds(SESSION_TTL_SECONDS),
                 mustChange);
-        sessions.put(s.token(), s);
+        sessions.put(s.getToken(), s);
         return s;
     }
 
@@ -88,39 +109,40 @@ public class AuthService {
 
     public Session changePassword(Session current, String oldPassword, String newPassword) {
         if (newPassword == null || newPassword.length() < 6) throw new IllegalArgumentException("新密码至少 6 位");
-        if (oldPassword == null || oldPassword.isBlank()) throw new IllegalArgumentException("请输入原密码");
+        if (oldPassword == null || oldPassword.trim().isEmpty()) throw new IllegalArgumentException("请输入原密码");
 
-        StoredUser dbUser = userRepository.findByUsername(current.username())
+        StoredUser dbUser = userRepository.findByUsername(current.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("该账号未启用自助改密，请联系管理员"));
-        if (!dbUser.passwordSha256().equalsIgnoreCase(sha256(oldPassword))) {
+        if (!dbUser.getPasswordSha256().equalsIgnoreCase(sha256(oldPassword))) {
             throw new IllegalArgumentException("原密码错误");
         }
-        userRepository.updatePassword(current.username(), sha256(newPassword), false);
+        userRepository.updatePassword(current.getUsername(), sha256(newPassword), false);
 
-        sessions.remove(current.token());
+        sessions.remove(current.getToken());
         Session fresh = new Session(
                 UUID.randomUUID().toString(),
-                current.username(),
-                dbUser.roles(),
+                current.getUsername(),
+                dbUser.getRoles(),
                 Instant.now().plusSeconds(SESSION_TTL_SECONDS),
                 false);
-        sessions.put(fresh.token(), fresh);
+        sessions.put(fresh.getToken(), fresh);
         return fresh;
     }
 
     public void resetPassword(String operator, String username, String newPassword) {
         if (newPassword == null || newPassword.length() < 6) throw new IllegalArgumentException("密码至少 6 位");
-        if (username == null || username.isBlank()) throw new IllegalArgumentException("用户名不能为空");
+        if (username == null || username.trim().isEmpty()) throw new IllegalArgumentException("用户名不能为空");
 
         Optional<StoredUser> dbUser = userRepository.findByUsername(username);
-        Optional<QueryZenProperties.UserAccount> configUser = props.users().stream()
-                .filter(u -> u.username().equalsIgnoreCase(username))
+        Optional<QueryZenProperties.UserAccount> configUser = props.getUsers().stream()
+                .filter(u -> u.getUsername().equalsIgnoreCase(username))
                 .findFirst();
 
-        if (dbUser.isEmpty() && configUser.isEmpty()) throw new IllegalArgumentException("用户不存在: " + username);
+        if (!dbUser.isPresent() && !configUser.isPresent())
+            throw new IllegalArgumentException("用户不存在: " + username);
 
-        if (dbUser.isEmpty()) {
-            userRepository.insert(username, sha256(newPassword), configUser.get().roles(), operator);
+        if (!dbUser.isPresent()) {
+            userRepository.insert(username, sha256(newPassword), configUser.get().getRoles(), operator);
         }
         userRepository.updatePassword(username, sha256(newPassword), true);
     }
@@ -130,10 +152,12 @@ public class AuthService {
             throw new IllegalArgumentException("用户名需为 3-64 位字母/数字/下划线/连字符");
         }
         if (password == null || password.length() < 6) throw new IllegalArgumentException("密码至少 6 位");
-        List<String> safeRoles = roles == null || roles.isEmpty() ? List.of("user") : roles.stream().distinct().toList();
+        List<String> safeRoles = roles == null || roles.isEmpty()
+                ? Collections.singletonList("user")
+                : roles.stream().distinct().collect(Collectors.toList());
 
         if (userRepository.findByUsername(username.toLowerCase()).isPresent()
-                || props.users().stream().anyMatch(u -> u.username().equalsIgnoreCase(username))) {
+                || props.getUsers().stream().anyMatch(u -> u.getUsername().equalsIgnoreCase(username))) {
             throw new IllegalArgumentException("用户已存在: " + username);
         }
         userRepository.insert(username, sha256(password), safeRoles, creator);
@@ -143,22 +167,49 @@ public class AuthService {
     public List<UserAccountView> listUsers() {
         Map<String, UserAccountView> merged = new LinkedHashMap<>();
         for (StoredUser du : userRepository.list()) {
-            merged.put(du.username(), new UserAccountView(du.username(), du.roles(), du.createdBy(), du.createdAt()));
+            merged.put(du.getUsername(), new UserAccountView(du.getUsername(), du.getRoles(), du.getCreatedBy(), du.getCreatedAt()));
         }
-        for (QueryZenProperties.UserAccount cu : props.users()) {
-            merged.putIfAbsent(cu.username(), new UserAccountView(cu.username(), cu.roles(), "CONFIG", null));
+        for (QueryZenProperties.UserAccount cu : props.getUsers()) {
+            merged.putIfAbsent(cu.getUsername(), new UserAccountView(cu.getUsername(), cu.getRoles(), "CONFIG", null));
         }
         return new ArrayList<>(merged.values());
     }
 
-    public record UserAccountView(String username, List<String> roles, String createdBy, String createdAt) {}
+    public static class UserAccountView {
+        private final String username;
+        private final List<String> roles;
+        private final String createdBy;
+        private final String createdAt;
+
+        public UserAccountView(String username, List<String> roles, String createdBy, String createdAt) {
+            this.username = username;
+            this.roles = roles;
+            this.createdBy = createdBy;
+            this.createdAt = createdAt;
+        }
+
+        public String getUsername() { return username; }
+        public List<String> getRoles() { return roles; }
+        public String getCreatedBy() { return createdBy; }
+        public String getCreatedAt() { return createdAt; }
+    }
 
     static String sha256(String value) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(value.getBytes(StandardCharsets.UTF_8)));
+            return toHex(md.digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /** 小写十六进制（与原 JDK17 HexFormat.of().formatHex 输出一致）。 */
+    private static String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
     }
 }

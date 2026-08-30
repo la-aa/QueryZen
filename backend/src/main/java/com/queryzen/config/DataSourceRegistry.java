@@ -2,9 +2,11 @@ package com.queryzen.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PreDestroy;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,21 +23,21 @@ public class DataSourceRegistry {
     private final Map<String, QueryZenProperties.ConnectionDefinition> definitions = new LinkedHashMap<>();
 
     public DataSourceRegistry(QueryZenProperties props) {
-        for (QueryZenProperties.ConnectionDefinition def : props.connections()) {
+        for (QueryZenProperties.ConnectionDefinition def : props.getConnections()) {
             HikariConfig cfg = new HikariConfig();
-            cfg.setJdbcUrl(def.jdbcUrl());
-            cfg.setUsername(def.username());
-            cfg.setPassword(def.password());
+            cfg.setJdbcUrl(def.getJdbcUrl());
+            cfg.setUsername(def.getUsername());
+            cfg.setPassword(def.getPassword());
             cfg.setDriverClassName("oracle.jdbc.OracleDriver");
             cfg.setReadOnly(true);
             cfg.setConnectionTimeout(10000);
             cfg.setMinimumIdle(0);
             cfg.setMaximumPoolSize(4);
-            if (def.schema() != null && !def.schema().isBlank()) {
-                cfg.setConnectionInitSql("ALTER SESSION SET CURRENT_SCHEMA = " + def.schema());
+            if (def.getSchema() != null && !def.getSchema().trim().isEmpty()) {
+                cfg.setConnectionInitSql("ALTER SESSION SET CURRENT_SCHEMA = " + def.getSchema());
             }
-            sources.put(def.id(), new HikariDataSource(cfg));
-            definitions.put(def.id(), def);
+            sources.put(def.getId(), new HikariDataSource(cfg));
+            definitions.put(def.getId(), def);
         }
     }
 
@@ -52,7 +54,7 @@ public class DataSourceRegistry {
     }
 
     public List<QueryZenProperties.ConnectionDefinition> definitions() {
-        return List.copyOf(definitions.values());
+        return Collections.unmodifiableList(new ArrayList<>(definitions.values()));
     }
 
     @PreDestroy

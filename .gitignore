@@ -21,6 +21,9 @@ npm-debug.log*
 .project
 .classpath
 
+# ZCode 会话数据
+.zcode/
+
 # Env / secrets
 .env
 .env.prod

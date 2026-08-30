@@ -1,7 +1,7 @@
 package com.queryzen.config;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -29,7 +29,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         String header = request.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) throw new UnauthorizedException();
         AuthService.Session session = authService.validate(header.substring(7));
-        if (session.mustChangePassword() && !"/api/auth/change-password".equals(request.getRequestURI())) {
+        if (session.isMustChangePassword() && !"/api/auth/change-password".equals(request.getRequestURI())) {
             throw new PasswordExpiredException();
         }
         request.setAttribute(ATTR_SESSION, session);

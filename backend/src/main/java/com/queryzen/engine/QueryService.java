@@ -42,19 +42,19 @@ public class QueryService {
 
     private QueryResult run(String connectionId, String sql, String username, String ip, String auditPrefix) {
         QueryZenProperties.ConnectionDefinition def = registry.definition(connectionId);
-        Dialect dialect = Dialect.forType(def.dbType());
+        Dialect dialect = Dialect.forType(def.getDbType());
 
-        SqlGuard.validate(sql, def.dbType());
-        String finalSql = dialect.applyRowLimit(sql, def.maxRows());
+        SqlGuard.validate(sql, def.getDbType());
+        String finalSql = dialect.applyRowLimit(sql, def.getMaxRows());
 
         long start = System.nanoTime();
         try (Connection conn = registry.get(connectionId).getConnection();
              PreparedStatement ps = conn.prepareStatement(finalSql)) {
-            if (def.queryTimeoutSeconds() > 0) {
-                ps.setQueryTimeout(def.queryTimeoutSeconds());
+            if (def.getQueryTimeoutSeconds() > 0) {
+                ps.setQueryTimeout(def.getQueryTimeoutSeconds());
             }
             // 多取 1 行用于判断是否被截断
-            ps.setMaxRows(def.maxRows() + 1);
+            ps.setMaxRows(def.getMaxRows() + 1);
 
             try (ResultSet rs = ps.executeQuery()) {
                 ResultSetMetaData md = rs.getMetaData();
@@ -66,11 +66,11 @@ public class QueryService {
                 }
 
                 List<List<Object>> rows = new ArrayList<>();
-                int cap = def.maxRows() + 1;
+                int cap = def.getMaxRows() + 1;
                 for (int i = 0; i < cap && rs.next(); i++) {
                     rows.add(readRow(rs, colCount));
                 }
-                boolean truncated = rows.size() > def.maxRows();
+                boolean truncated = rows.size() > def.getMaxRows();
                 if (truncated) {
                     rows.remove(rows.size() - 1);
                 }
@@ -88,19 +88,30 @@ public class QueryService {
         }
     }
 
-    public record TableInfo(String owner, String tableName) {}
+    public static class TableInfo {
+        private final String owner;
+        private final String tableName;
+
+        public TableInfo(String owner, String tableName) {
+            this.owner = owner;
+            this.tableName = tableName;
+        }
+
+        public String getOwner() { return owner; }
+        public String getTableName() { return tableName; }
+    }
 
     public List<TableInfo> listTables(String connectionId) {
         QueryZenProperties.ConnectionDefinition def = registry.definition(connectionId);
-        Dialect dialect = Dialect.forType(def.dbType());
+        Dialect dialect = Dialect.forType(def.getDbType());
 
         String sql = dialect.listTablesSql();
         List<TableInfo> tables = new ArrayList<>();
         try (Connection conn = registry.get(connectionId).getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-            if (def.queryTimeoutSeconds() > 0) {
-                ps.setQueryTimeout(def.queryTimeoutSeconds());
+            if (def.getQueryTimeoutSeconds() > 0) {
+                ps.setQueryTimeout(def.getQueryTimeoutSeconds());
             }
             while (rs.next()) {
                 tables.add(new TableInfo(rs.getString(1), rs.getString(2)));
@@ -115,11 +126,12 @@ public class QueryService {
         List<Object> row = new ArrayList<>();
         for (int i = 1; i <= colCount; i++) {
             Object v = rs.getObject(i);
-            if (v instanceof Timestamp t) {
-                row.add(t.toLocalDateTime().toString());
-            } else if (v instanceof java.sql.Date d) {
-                row.add(d.toLocalDate().toString());
-            } else if (v instanceof Clob c) {
+            if (v instanceof Timestamp) {
+                row.add(((Timestamp) v).toLocalDateTime().toString());
+            } else if (v instanceof java.sql.Date) {
+                row.add(((java.sql.Date) v).toLocalDate().toString());
+            } else if (v instanceof Clob) {
+                Clob c = (Clob) v;
                 row.add(c.getSubString(1, (int) Math.min(c.length(), 4000)));
             } else {
                 row.add(v);
